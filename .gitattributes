@@ -1,5 +1,27 @@
-# Auto detect text files and perform LF normalization
-* text=auto
-Front:
-Body:
-Base:
+ // Factores de converciones aproximados ( Kg por CO2 por unidad )
+Const FACTORES = { 
+  Electricidad_Kwh: 0.45, // Kg CO2 / Kwh (Ejemplo) 
+  Gas_Litro: 2.31, // kg C02 / Litro de gasolina 
+  Transporte_Km_gasolina. 0.21, // Kg CO2 / Km ( auto promedio )
+  Carne_reda_porcion: 7.0, // Kg C02 por porcion grande ( estimado )
+  Dispositivo_por_dia_Kwh: 0.1 // consumo estimado por Dispositivo por dia 
+};
+
+function calacularhuella({ Electricidad, Gas, Transporte , Carne, Dispositivo }) {
+  // Electricidad: Kwh/mes , Gas: Litro/mes , Transporte: Km/mes Carne. porcion/semana , Dispositivos: cantidad 
+  const ElectridadC02 = (Number(Electricidad) || 0) * FACTORES.Electricidad_Kwh;
+  const GasCO2 = (Number(Gas) || 0) * FACTORES.Gas_Litro;
+  const TransporteCO2 = (Number(Transporte) || 0) * FACTORES.Transporte_Km_gasolina;
+  const CarneCO2 =(Number(Carne) || 0) * FACTORES.Carne_reda_porcion * 4; // convertir por semana a mes ~x4
+  const DispositivosCO2 =(Number(Dispositivos) || 0) * FACTORES.Dispositivo_por_dia_Kwh * 30 * FACTORES.Electricidad;
+
+  const totalKg = ElectricidadCO2 + GasCO2 + TransporteC02 + CarneCO2 + Dispositivos;
+  return {
+    ElectricidadCO2,
+    GasCO2,
+    TransporteCO2,
+    CarneCO2,
+    DisporitivosCO2
+    totalKg,
+ };
+}
