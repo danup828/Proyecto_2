@@ -1,7 +1,33 @@
-# Auto detect text files and perform LF normalization
-* text=auto
-Front:
-Body:
-Base:
-holis
-NO
+// Recibe valores mensuales excepto Carne (semanal) y Dispositivos (cantidad)
+function calcularHuella({ Electricidad, Gas, Transporte, Carne, Dispositivos }) {
+
+  const ElectricidadCO2 = (Number(Electricidad) || 0) * FACTORES.Electricidad_Kwh;
+  const GasCO2 = (Number(Gas) || 0) * FACTORES.Gas_Litro;
+  const TransporteCO2 = (Number(Transporte) || 0) * FACTORES.Transporte_Km_gasolina;
+
+  // Carne semanal convertida a mensual (x4)
+  const CarneCO2 = (Number(Carne) || 0) * FACTORES.Carne_res_porcion * 4;  
+
+  // Dispositivos → consumo diario → mensual → multiplicar por factor de electricidad
+  const DispositivosCO2 = 
+      (Number(Dispositivos) || 0) 
+      * FACTORES.Dispositivo_por_dia_Kwh 
+      * 30 
+      * FACTORES.Electricidad_Kwh;
+
+  const totalKg = 
+      ElectricidadCO2 
+      + GasCO2 
+      + TransporteCO2 
+      + CarneCO2 
+      + DispositivosCO2;
+
+  return {
+    ElectricidadCO2,
+    GasCO2,
+    TransporteCO2,
+    CarneCO2,
+    DispositivosCO2,
+    totalKg
+  };
+}
