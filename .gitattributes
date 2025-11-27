@@ -1,27 +1,272 @@
- // Factores de converciones aproximados ( Kg por CO2 por unidad )
-Const FACTORES = { 
-  Electricidad_Kwh: 0.45, // Kg CO2 / Kwh (Ejemplo) 
-  Gas_Litro: 2.31, // kg C02 / Litro de gasolina 
-  Transporte_Km_gasolina. 0.21, // Kg CO2 / Km ( auto promedio )
-  Carne_reda_porcion: 7.0, // Kg C02 por porcion grande ( estimado )
-  Dispositivo_por_dia_Kwh: 0.1 // consumo estimado por Dispositivo por dia 
+/*
+HuellaEnergetica - Single-file React app (Tailwind-ready)
+Instrucciones rápidas para correr:
+1) Crear un proyecto React (por ejemplo: npx create-react-app huella-app --template cra-template-pwa)
+2) Configurar Tailwind según su guía oficial (si quieres estilos tal cual). Si no quieres Tailwind, elimina las clases relacionadas.
+3) Reemplaza src/App.jsx por este archivo. Asegúrate que Tailwind esté activo en src/index.css o usa CSS propio.
+4) npm install (si no lo hiciste) y npm start
+
+Este archivo incluye:
+- Calculadora de huella (electricidad, gas, transporte, alimentación, electrónica)
+- Simulador de impacto con sliders/checks para ver reducciones estimadas
+- Mapa simple con puntos de soluciones locales (datos mock) y posibilidad de centrar en geolocalización
+- Persistencia local con localStorage para guardar usuario y registros
+- Export simple de CSV del historial
+
+Nota: Este proyecto evita dependencias externas pesadas para que puedas probarlo rápido. Si quieres integrar Leaflet/Mapbox o una API real de factores de emisión, lo agregamos.
+*/
+
+import React, { useEffect, useState } from "react";
+
+// Factores de conversión aproximados (kg CO2 por unidad)
+const FACTORES = {
+  electricidad_kwh: 0.45, // kg CO2 / kWh (ejemplo)
+  gas_litro: 2.31, // kg CO2 / litro de gasolina
+  transporte_km_gasolina: 0.21, // kg CO2 / km (auto promedio)
+  carne_reda_porcion: 7.0, // kg CO2 por porción grande (estimado)
+  dispositivo_por_dia_kwh: 0.1, // consumo estimado por dispositivo por día
 };
 
-function calacularhuella({ Electricidad, Gas, Transporte , Carne, Dispositivo }) {
-  // Electricidad: Kwh/mes , Gas: Litro/mes , Transporte: Km/mes Carne. porcion/semana , Dispositivos: cantidad 
-  const ElectridadC02 = (Number(Electricidad) || 0) * FACTORES.Electricidad_Kwh;
-  const GasCO2 = (Number(Gas) || 0) * FACTORES.Gas_Litro;
-  const TransporteCO2 = (Number(Transporte) || 0) * FACTORES.Transporte_Km_gasolina;
-  const CarneCO2 =(Number(Carne) || 0) * FACTORES.Carne_reda_porcion * 4; // convertir por semana a mes ~x4
-  const DispositivosCO2 =(Number(Dispositivos) || 0) * FACTORES.Dispositivo_por_dia_Kwh * 30 * FACTORES.Electricidad;
+function calcularHuella({ electricidad, gas, transporte, carne, dispositivos }) {
+  // electricidad: kWh/mes, gas: litros/mes, transporte: km/mes, carne: porciones/semana, dispositivos: cantidad
+  const electricidadCO2 = (Number(electricidad) || 0) * FACTORES.electricidad_kwh;
+  const gasCO2 = (Number(gas) || 0) * FACTORES.gas_litro;
+  const transporteCO2 = (Number(transporte) || 0) * FACTORES.transporte_km_gasolina;
+  const carneCO2 = (Number(carne) || 0) * FACTORES.carne_reda_porcion * 4; // convertir por semana a mes ~x4
+  const dispositivosCO2 = (Number(dispositivos) || 0) * FACTORES.dispositivo_por_dia_kwh * 30 * FACTORES.electricidad_kwh;
 
-  const totalKg = ElectricidadCO2 + GasCO2 + TransporteC02 + CarneCO2 + Dispositivos;
+  const totalKg = electricidadCO2 + gasCO2 + transporteCO2 + carneCO2 + dispositivosCO2;
   return {
-    ElectricidadCO2,
-    GasCO2,
-    TransporteCO2,
-    CarneCO2,
-    DisporitivosCO2
+    electricidadCO2,
+    gasCO2,
+    transporteCO2,
+    carneCO2,
+    dispositivosCO2,
     totalKg,
- };
+  };
+}
+
+function formatKg(kg) {
+  return `${kg.toFixed(2)} kg CO₂`;
+}
+
+export default function App() {
+  const [user, setUser] = useState(() => localStorage.getItem("huella_user") || "Usuario");
+  const [inputs, setInputs] = useState(() => {
+    const saved = localStorage.getItem("huella_inputs");
+    return saved ? JSON.parse(saved) : { electricidad: 150, gas: 20, transporte: 400, carne: 3, dispositivos: 5 };
+  });
+  const [result, setResult] = useState(() => calcularHuella({ electricidad: 0, gas: 0, transporte: 0, carne: 0, dispositivos: 0 }));
+  const [historial, setHistorial] = useState(() => {
+    const s = localStorage.getItem("huella_historial");
+    return s ? JSON.parse(s) : [];
+  });
+  const [sim, setSim] = useState({ led: false, transporte_publico: false, paneles: 0, menos_carne: 0 });
+
+  useEffect(() => {
+    const r = calcularHuella(inputs);
+    setResult(r);
+  }, [inputs]);
+
+  useEffect(() => {
+    localStorage.setItem("huella_inputs", JSON.stringify(inputs));
+  }, [inputs]);
+
+  useEffect(() => {
+    localStorage.setItem("huella_user", user);
+  }, [user]);
+
+  useEffect(() => {
+    localStorage.setItem("huella_historial", JSON.stringify(historial));
+  }, [historial]);
+
+  function guardarRegistro() {
+    const entry = {
+      id: Date.now(),
+      user,
+      inputs,
+      result,
+      createdAt: new Date().toISOString(),
+    };
+    setHistorial([entry, ...historial]);
+  }
+
+  function exportCSV() {
+    const rows = historial.map(h => `${h.createdAt},${h.inputs.electricidad},${h.inputs.gas},${h.inputs.transporte},${h.inputs.carne},${h.inputs.dispositivos},${h.result.totalKg}`);
+    const csv = "fecha,electricidad_kwh,gas_litros,transporte_km,carne_por_semana,dispositivos,totalKg\n" + rows.join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "huella_historial.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function aplicarSimulacion() {
+    // Simulaciones simplificadas
+    const simInputs = { ...inputs };
+    if (sim.led) simInputs.electricidad = Math.max(0, simInputs.electricidad * 0.8);
+    if (sim.transporte_publico) simInputs.transporte = Math.max(0, simInputs.transporte * 0.5);
+    if (sim.paneles > 0) simInputs.electricidad = Math.max(0, simInputs.electricidad - sim.paneles * 50);
+    simInputs.carne = Math.max(0, simInputs.carne - sim.menos_carne);
+    return calcularHuella(simInputs);
+  }
+
+  const simResult = aplicarSimulacion();
+
+  // Mapa mock: puntos de soluciones locales
+  const soluciones = [
+    { id: 1, name: "Centro de Reciclaje Benito", type: "Reciclaje", lat: 19.4326, lon: -99.1332, info: "Recogen plásticos y electrónicos" },
+    { id: 2, name: "Paneles Solares MX", type: "Proveedores", lat: 19.428, lon: -99.127, info: "Instalación y cotización gratuita" },
+    { id: 3, name: "Taller Eco", type: "Taller", lat: 19.435, lon: -99.14, info: "Cursos y asesorías" },
+  ];
+
+  return (
+    <div className="min-h-screen bg-gray-50 p-6">
+      <div className="max-w-5xl mx-auto">
+        <header className="flex items-center justify-between mb-6">
+          <h1 className="text-2xl font-semibold">HuellaEnergetica — Demo</h1>
+          <div className="text-sm text-gray-600">Usuario: <input value={user} onChange={e => setUser(e.target.value)} className="border px-2 py-1 rounded ml-2" /></div>
+        </header>
+
+        <main className="grid md:grid-cols-2 gap-6">
+          <section className="bg-white p-4 rounded shadow">
+            <h2 className="font-semibold mb-2">Calculadora</h2>
+            <div className="space-y-3">
+              <label className="block">Electricidad (kWh/mes)
+                <input type="number" value={inputs.electricidad} onChange={e => setInputs({ ...inputs, electricidad: e.target.value })} className="w-full mt-1 border rounded px-2 py-1" />
+              </label>
+              <label className="block">Gas / Combustible (litros/mes)
+                <input type="number" value={inputs.gas} onChange={e => setInputs({ ...inputs, gas: e.target.value })} className="w-full mt-1 border rounded px-2 py-1" />
+              </label>
+              <label className="block">Transporte (km/mes)
+                <input type="number" value={inputs.transporte} onChange={e => setInputs({ ...inputs, transporte: e.target.value })} className="w-full mt-1 border rounded px-2 py-1" />
+              </label>
+              <label className="block">Porciones de carne / semana
+                <input type="number" value={inputs.carne} onChange={e => setInputs({ ...inputs, carne: e.target.value })} className="w-full mt-1 border rounded px-2 py-1" />
+              </label>
+              <label className="block">Dispositivos (cantidad)
+                <input type="number" value={inputs.dispositivos} onChange={e => setInputs({ ...inputs, dispositivos: e.target.value })} className="w-full mt-1 border rounded px-2 py-1" />
+              </label>
+
+              <div className="flex items-center justify-between mt-3">
+                <div>
+                  <div className="text-sm text-gray-500">Total estimado:</div>
+                  <div className="text-lg font-bold">{formatKg(result.totalKg)}</div>
+                </div>
+                <div className="space-x-2">
+                  <button onClick={guardarRegistro} className="px-3 py-1 bg-blue-600 text-white rounded">Guardar</button>
+                  <button onClick={() => { setHistorial([]); localStorage.removeItem('huella_historial'); }} className="px-3 py-1 bg-red-500 text-white rounded">Borrar historial</button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section className="bg-white p-4 rounded shadow">
+            <h2 className="font-semibold mb-2">Simulador de impacto</h2>
+            <div className="space-y-3">
+              <label className="flex items-center">
+                <input type="checkbox" checked={sim.led} onChange={e => setSim({ ...sim, led: e.target.checked })} className="mr-2" /> Cambiar a LED (ahorro ~20%)
+              </label>
+              <label className="flex items-center">
+                <input type="checkbox" checked={sim.transporte_publico} onChange={e => setSim({ ...sim, transporte_publico: e.target.checked })} className="mr-2" /> Usar transporte público (reduce transporte a 50%)
+              </label>
+              <label className="block">Paneles solares (estimado kWh/mes)
+                <input type="range" min="0" max="10" value={sim.paneles} onChange={e => setSim({ ...sim, paneles: Number(e.target.value) })} /> {sim.paneles * 50} kWh/mes
+              </label>
+              <label className="block">Menos porciones de carne por semana
+                <input type="range" min="0" max="3" value={sim.menos_carne} onChange={e => setSim({ ...sim, menos_carne: Number(e.target.value) })} /> {sim.menos_carne}
+              </label>
+
+              <div className="mt-3">
+                <div className="text-sm text-gray-500">Resultado simulado:</div>
+                <div className="text-lg font-bold">{formatKg(simResult.totalKg)}</div>
+                <div className="text-sm text-green-600">Reducción estimada: {formatKg(result.totalKg - simResult.totalKg)}</div>
+              </div>
+
+              <div className="mt-3">
+                <button onClick={() => { setInputs(prev => ({ ...prev, electricidad: Math.max(0, prev.electricidad * 0.8), transporte: Math.max(0, prev.transporte * 0.5) })); }} className="px-3 py-1 bg-green-600 text-white rounded">Aplicar cambios recomendados</button>
+              </div>
+            </div>
+          </section>
+
+          <section className="bg-white p-4 rounded shadow md:col-span-2">
+            <h2 className="font-semibold mb-2">Mapa de soluciones locales</h2>
+            <div className="flex flex-col md:flex-row gap-4">
+              <div className="w-full md:w-1/3">
+                <div className="space-y-2">
+                  {soluciones.map(s => (
+                    <div key={s.id} className="p-2 border rounded">
+                      <div className="font-semibold">{s.name}</div>
+                      <div className="text-sm text-gray-600">{s.type}</div>
+                      <div className="text-sm">{s.info}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="w-full md:w-2/3">
+                <div className="border rounded overflow-hidden" style={{ height: 300 }}>
+                  {/* Simple map embed centered in Mexico City by default; if user grants geolocation, center there */}
+                  <MapEmbed soluciones={soluciones} />
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 flex justify-between">
+              <div>
+                <button onClick={exportCSV} className="px-3 py-1 bg-indigo-600 text-white rounded">Exportar historial CSV</button>
+              </div>
+              <div className="text-sm text-gray-500">Datos locales mock. Para producción integra API de directorios locales.</div>
+            </div>
+          </section>
+
+          <section className="bg-white p-4 rounded shadow md:col-span-2">
+            <h2 className="font-semibold mb-2">Historial</h2>
+            <div className="overflow-auto max-h-64">
+              <table className="w-full text-sm">
+                <thead className="text-left text-gray-600">
+                  <tr><th>Fecha</th><th>Total</th><th>Acción</th></tr>
+                </thead>
+                <tbody>
+                  {historial.map(h => (
+                    <tr key={h.id} className="border-t">
+                      <td className="py-2">{new Date(h.createdAt).toLocaleString()}</td>
+                      <td className="py-2">{formatKg(h.result.totalKg)}</td>
+                      <td className="py-2"><button onClick={() => { setInputs(h.inputs); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="px-2 py-1 bg-yellow-500 text-white rounded">Cargar</button></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+        </main>
+
+        <footer className="mt-6 text-xs text-gray-500">Demo funcional — factores de emisión aproximados. Si quieres integración con APIs oficiales o mapas más precisos, lo añado.</footer>
+      </div>
+    </div>
+  );
+}
+
+function MapEmbed({ soluciones }) {
+  const [coords, setCoords] = useState({ lat: 19.4326, lon: -99.1332, zoom: 13 });
+
+  useEffect(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(pos => {
+        setCoords({ lat: pos.coords.latitude, lon: pos.coords.longitude, zoom: 13 });
+      }, () => {
+        // permiso denegado o error: queda México CDMX por defecto
+      });
+    }
+  }, []);
+
+  const src = `https://www.openstreetmap.org/export/embed.html?bbox=${coords.lon - 0.05}%2C${coords.lat - 0.03}%2C${coords.lon + 0.05}%2C${coords.lat + 0.03}&layer=mapnik&marker=${coords.lat}%2C${coords.lon}`;
+
+  return (
+    <div className="w-full h-full">
+      <iframe title="mapa" src={src} className="w-full h-full border-0" />
+    </div>
+  );
 }
